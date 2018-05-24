@@ -26,15 +26,18 @@ using namespace Windows::UI::Xaml::Media;
 using namespace Windows::UI::Xaml::Navigation;
 using namespace Windows::Gaming::Input;
 using namespace Windows::Gaming::Input::ForceFeedback;
-using namespace Windows::Gaming::Input::ForceFeedback;
 
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
 MainPage::MainPage()
 {
+    createInitConditionForceParams();
+ 
 	InitializeComponent();
 
     int count(0);
+
+    cout << "Waiting to connect to wheel ..." << endl;
 
     while (RacingWheel::RacingWheels->Size < 2);
     Sleep(2000);
@@ -65,7 +68,7 @@ MainPage::MainPage()
         {
             // force feedback is supported
             displayFFcaps(m_racingWheels[0]);
-            testSpringEffectFor(m_racingWheels[0]);
+            CreateLoadSpringEffectFor(m_racingWheels[0]);
         }
 
         /*while (true)
@@ -79,11 +82,25 @@ MainPage::MainPage()
     cout << "\nDone!" << endl;
 }
 
+void FanatecClubSportWheelApp::MainPage::createInitConditionForceParams()
+{
+    // Create Initialize condition force parameters
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Damper)]   = new ConditionForceParams();
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Friction)] = new ConditionForceParams();
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Inertia)]  = new ConditionForceParams();
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]   = new ConditionForceParams();
+
+    // Set Spring default values
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce   = SPRING_EFFECT_CONST.MIN_FEEDBACK_FORCE; // 0.30 = 30%
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->strenghtAtMaxAngle = 1.0f;  // 100%
+
+}
+
 void FanatecClubSportWheelApp::MainPage::displayFFcaps(RacingWheel^ racingwheel)
 {
     if (racingwheel->WheelMotor != nullptr)
     {
-        auto axes = racingwheel->WheelMotor->SupportedAxes;
+        auto axes = racingwheel->WheelMotor->SupportedAxes; 
 
         cout << "Force can be applied through the X axis: " << string((ForceFeedbackEffectAxes::X == (axes & ForceFeedbackEffectAxes::X)) ? "YES" : "NO") << endl;
         cout << "Force can be applied through the Y axis: " << string((ForceFeedbackEffectAxes::Y == (axes & ForceFeedbackEffectAxes::Y)) ? "YES" : "NO") << endl;
@@ -91,8 +108,46 @@ void FanatecClubSportWheelApp::MainPage::displayFFcaps(RacingWheel^ racingwheel)
     }
 }
 
-void FanatecClubSportWheelApp::MainPage::testSpringEffectFor(RacingWheel^ racingwheel)
+void FanatecClubSportWheelApp::MainPage::SetSpringEffectsParameters()
 {
+    if (m_springEffect->State == ForceFeedbackEffectState::Running)
+    {
+        m_springEffect->Stop();
+    }
+    
+    if (m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce <= 0.0)
+    {
+        m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce = SPRING_EFFECT_CONST.MIN_FEEDBACK_FORCE;
+    }
+
+    // Set the parameters for the spring effect.  Note how the parameters
+    // can be modified after the effect has been loaded into the hardware.
+    m_springEffect->SetParameters(
+
+        // Unit vector indicating the effect applies to the X axis
+        float3(1.0f, 0.0f, 0.0f),
+
+        // strength when the wheel is turned to its maximum angle (full =1.0) 
+        m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->strenghtAtMaxAngle,
+        m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->strenghtAtMaxAngle,
+
+        // Limit the maximum feedback force to x%
+        m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce,
+        m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce,
+
+        // Apply a small dead zone when the wheel is centered
+        m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->centeredDeadZone,
+
+        // Equal force in both directions. Bias = 0
+        m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->bias
+    );
+
+    m_springEffect->Start();
+}
+
+void FanatecClubSportWheelApp::MainPage::CreateLoadSpringEffectFor(RacingWheel^ racingwheel)
+{
+    
     if (racingwheel->WheelMotor != nullptr)
     {
         using FFLoadEffectResult = ForceFeedback::ForceFeedbackLoadEffectResult;
@@ -118,16 +173,7 @@ void FanatecClubSportWheelApp::MainPage::testSpringEffectFor(RacingWheel^ racing
                 {
                     cout << "Spring effect successfully loaded" << endl;
 
-                    // Set the parameters for the spring effect.  Note how the parameters
-                    // can be modified after the effect has been loaded into the hardware.
-                    this->m_springEffect->SetParameters(
-                        float3(1.0f, 0.0f, 0.0f),   // Unit vector indicating the effect applies to the X axis
-                        1.0f, 1.0f,            // Full strength when the wheel is turned to its maximum angle
-                        0.3f, 0.3f,            // Limit the maximum feedback force to 30%
-                        0.025f,                 // Apply a small dead zone when the wheel is centered
-                        0.0f);                  // Equal force in both directions
-
-                    m_springEffect->Start();
+                    this->SetSpringEffectsParameters();
                 }
                 else
                 {
@@ -152,9 +198,39 @@ void FanatecClubSportWheelApp::MainPage::StartTimerAndRegisterHandler()
 
 void FanatecClubSportWheelApp::MainPage::OnTick(Object ^ sender, Object ^ e)
 {
+    auto maxAnglePerSide(m_racingWheels[0]->MaxWheelAngle / 2.0f);
+    double currentAngle(0);
+    static double prevAngle(-1.0);
+    double displayAngle(0);
+
     if (m_racingWheels[0])
     {
-        cout << "angle: " << m_racingWheels[0]->GetCurrentReading().Wheel << endl;
+        currentAngle = m_racingWheels[0]->GetCurrentReading().Wheel;
+
+        if (currentAngle != prevAngle)
+        {
+            displayAngle = currentAngle * maxAnglePerSide;
+            cout << "angle: (" << currentAngle << ") "
+                 << displayAngle << " degrees." << endl;
+            prevAngle = currentAngle;
+
+            angleTextBox->Text = displayAngle.ToString();
+        }
     }
 }
 
+
+void FanatecClubSportWheelApp::MainPage::springMaxFeedbackForceSlider_ValueChanged(
+    Platform::Object^ sender, 
+    Windows::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs^ e)
+{
+    float val(static_cast<float>(springMaxFeedbackForceSlider->Value) * 0.01f);
+
+    cout << "val: " << val << endl; 
+
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce = val;
+
+    springFFBValueTextBox->Text = (val*100.0f).ToString() + "%";
+
+    SetSpringEffectsParameters();
+}
