@@ -69,12 +69,9 @@ MainPage::MainPage()
             // force feedback is supported
             displayFFcaps(m_racingWheels[0]);
             CreateLoadSpringEffectFor(m_racingWheels[0]);
+            updateDisplay();
         }
 
-        /*while (true)
-        {
-        cout << "angle: " << racingWheels[0]->GetCurrentReading().Wheel << endl;
-        }*/
     }
 
     StartTimerAndRegisterHandler();
@@ -91,8 +88,29 @@ void FanatecClubSportWheelApp::MainPage::createInitConditionForceParams()
     m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]   = new ConditionForceParams();
 
     // Set Spring default values
-    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce   = SPRING_EFFECT_CONST.MIN_FEEDBACK_FORCE; // 0.30 = 30%
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce = 0.30f;   // 0.30 = 30%
     m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->strenghtAtMaxAngle = 1.0f;  // 100%
+
+}
+
+void FanatecClubSportWheelApp::MainPage::updateDisplay()
+{
+    // Update spring UI controls
+    float val(m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce);
+    springMaxFeedbackForceTextBox->Text = (val * 100.0f).ToString() + "%";
+    springMaxFeedbackForceSlider->Value = static_cast<int>(val * 100.0f);
+
+    val = m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->bias;
+    springBiasTextBox->Text = (val * 100.0f).ToString() + "%";
+    springBiasSlider->Value = static_cast<int>(val * 100.0f);
+
+    val = m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->centeredDeadZone;
+    springDeadZoneTextBox->Text = (val * 100.0f).ToString() + "%";
+    springDeadZoneSlider->Value = static_cast<int>(val * 100.0f);
+
+    val = m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->strenghtAtMaxAngle;
+    springForceAtMaxAngleTextBox->Text = (val * 100.0f).ToString() + "%";
+    springForceAtMaxAngleSlider->Value = static_cast<int>(val * 100.0f);
 
 }
 
@@ -110,9 +128,12 @@ void FanatecClubSportWheelApp::MainPage::displayFFcaps(RacingWheel^ racingwheel)
 
 void FanatecClubSportWheelApp::MainPage::SetSpringEffectsParameters()
 {
+    bool wasRunning(false);
+
     if (m_springEffect->State == ForceFeedbackEffectState::Running)
     {
         m_springEffect->Stop();
+        wasRunning = true;
     }
     
     if (m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce <= 0.0)
@@ -142,7 +163,11 @@ void FanatecClubSportWheelApp::MainPage::SetSpringEffectsParameters()
         m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->bias
     );
 
-    m_springEffect->Start();
+    if (wasRunning)
+    {
+        m_springEffect->Start();
+    }
+    
 }
 
 void FanatecClubSportWheelApp::MainPage::CreateLoadSpringEffectFor(RacingWheel^ racingwheel)
@@ -230,7 +255,65 @@ void FanatecClubSportWheelApp::MainPage::springMaxFeedbackForceSlider_ValueChang
 
     m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->maxFeedbackForce = val;
 
-    springFFBValueTextBox->Text = (val*100.0f).ToString() + "%";
+    springMaxFeedbackForceTextBox->Text = (val*100.0f).ToString() + "%";
 
     SetSpringEffectsParameters();
+}
+
+void FanatecClubSportWheelApp::MainPage::springForceAtMaxAngleSlider_ValueChanged(Platform::Object ^ sender, Windows::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs ^ e)
+{
+    float val(static_cast<float>(springForceAtMaxAngleSlider->Value) * 0.01f);
+
+    cout << "val: " << val << endl;
+
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->strenghtAtMaxAngle = val;
+
+    springForceAtMaxAngleTextBox->Text = (val*100.0f).ToString() + "%";
+
+    SetSpringEffectsParameters();
+}
+
+void FanatecClubSportWheelApp::MainPage::springDeadZoneSlider_ValueChanged(Platform::Object ^ sender, Windows::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs ^ e)
+{
+    float val(static_cast<float>(springDeadZoneSlider->Value) * 0.01f);
+
+    cout << "val: " << val << endl;
+
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->centeredDeadZone = val;
+
+    springDeadZoneTextBox->Text = (val*100.0f).ToString() + "%";
+
+    SetSpringEffectsParameters();
+}
+
+void FanatecClubSportWheelApp::MainPage::springBiasSlider_ValueChanged(Platform::Object ^ sender, Windows::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs ^ e)
+{
+    float val(static_cast<float>(springBiasSlider->Value) * 0.01f);
+
+    cout << "val: " << val << endl;
+
+    m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Spring)]->bias = val;
+
+    springBiasTextBox->Text = (val*100.0f).ToString() + "%";
+
+    SetSpringEffectsParameters();
+}
+
+
+
+void FanatecClubSportWheelApp::MainPage::springEnableButton_Click(Platform::Object^ sender, Windows::UI::Xaml::RoutedEventArgs^ e)
+{
+    if (m_springEffect)
+    {
+        if (m_springEffect->State == ForceFeedbackEffectState::Running)
+        {
+            m_springEffect->Stop();
+            springEnableButton->Content = "Enable";
+        }
+        else
+        {
+            m_springEffect->Start();
+            springEnableButton->Content = "Disable";
+        }
+    }
 }

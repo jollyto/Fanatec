@@ -13,14 +13,42 @@
             <ColumnDefinition Width="11*"/>
             <ColumnDefinition Width="10*"/>
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="angleTextBlock" HorizontalAlignment="Left" Margin="74,35,0,0" Text="Angle: " TextWrapping="Wrap" VerticalAlignment="Top"/>
-        <TextBox x:Name="angleTextBox" HorizontalAlignment="Left" Height="0" Margin="123,31,0,0" Text="---" TextAlignment="Center" VerticalAlignment="Top" Width="79"/>
-        <RelativePanel x:Name="springRelativePanel" HorizontalAlignment="Left" Height="190" Margin="20,84,0,0" VerticalAlignment="Top" Width="225" BorderBrush="black" BorderThickness="1" CornerRadius="1" Padding="1">
-            <TextBlock x:Name="springTextBlock" HorizontalAlignment="Left" Height="26" Text="Spring" TextWrapping="Wrap" VerticalAlignment="Top" Width="49" Margin="4,-2,0,0"/>
-            <Slider x:Name="springMaxFeedbackForceSlider" Height="67" Width="39" Maximum="100" Orientation="Vertical" ValueChanged="springMaxFeedbackForceSlider_ValueChanged" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="16,66,0,0"/>
-            <TextBlock HorizontalAlignment="Left" TextWrapping="Wrap" Text="  FF&#x0d;&#x0a;BACK" RenderTransformOrigin="1.016,0.1" Margin="16,140,0,-10"/>
+        <RelativePanel HorizontalAlignment="Left" Height="32" Margin="24,19,0,0" VerticalAlignment="Top" Width="128">
+            <TextBlock x:Name="angleTextBlock" HorizontalAlignment="Left" Margin="0,4,0,0" Text="Angle: " TextWrapping="Wrap" VerticalAlignment="Top"/>
+            <TextBox x:Name="angleTextBox" HorizontalAlignment="Left" Height="0" Margin="49,0,0,0" Text="---" TextAlignment="Center" VerticalAlignment="Center" Width="79"/>
         </RelativePanel>
-        <TextBox x:Name="springFFBValueTextBox" HorizontalAlignment="Left" Height="2" Margin="27,111,0,0" Text="---" TextAlignment="Center" VerticalAlignment="Top" Width="0"/>
+        <RelativePanel x:Name="springRelativePanel" HorizontalAlignment="Left" Height="225" Margin="21,58,0,0" VerticalAlignment="Top" Width="288" BorderBrush="black" BorderThickness="1" CornerRadius="1" Padding="1">
+            <TextBlock x:Name="springTextBlock" HorizontalAlignment="Left" Height="26" Text="Spring" TextWrapping="Wrap" VerticalAlignment="Top" Width="49" Margin="4,-2,0,0"/>
+            <Slider x:Name="springMaxFeedbackForceSlider" Height="67" Width="39" Maximum="100" Orientation="Vertical" ValueChanged="springMaxFeedbackForceSlider_ValueChanged" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="16,95,0,0">
+                <ToolTipService.ToolTip >
+                    <ToolTip Content="Limit the maximum feedback force."  HorizontalOffset="10" VerticalOffset="20"/>
+                </ToolTipService.ToolTip>
+            </Slider>
+            <TextBlock x:Name="springMaxFeedbackForceTextBlock" HorizontalAlignment="Left" TextWrapping="Wrap" Text="  FF&#xA;Back" RenderTransformOrigin="1.016,0.1" Margin="16,169,0,-39" VerticalAlignment="Stretch"/>
+            <TextBox x:Name="springForceAtMaxAngleTextBox" HorizontalAlignment="Left" Height="2" Text="---" TextAlignment="Center" VerticalAlignment="Top" Width="0" Margin="74,54,0,0"/>
+            <Slider x:Name="springForceAtMaxAngleSlider" Height="67" Width="39" Maximum="100" Orientation="Vertical" ValueChanged="springForceAtMaxAngleSlider_ValueChanged" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="86,95,0,0">
+                <ToolTipService.ToolTip >
+                    <ToolTip Content="Strength when the wheel is turned to its maximum angle."  HorizontalOffset="10" VerticalOffset="20"/>
+                </ToolTipService.ToolTip>
+            </Slider>
+            <TextBlock x:Name="springForceAtMaxAngleTextBlock" HorizontalAlignment="Left" TextWrapping="Wrap" Text="  Force At&#xA;Max Angle" RenderTransformOrigin="1.016,0.1" Margin="69,169,0,-39" VerticalAlignment="Stretch"/>
+            <TextBox x:Name="springDeadZoneTextBox" HorizontalAlignment="Left" Height="2" Text="---" TextAlignment="Center" VerticalAlignment="Top" Width="0" Margin="144,54,0,0"/>
+            <Slider x:Name="springDeadZoneSlider" Height="67" Width="39" Maximum="100" Orientation="Vertical" ValueChanged="springDeadZoneSlider_ValueChanged" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="154,94,0,0">
+                <ToolTipService.ToolTip >
+                    <ToolTip Content="Dead zone when the wheel is centered."  HorizontalOffset="10" VerticalOffset="20"/>
+                </ToolTipService.ToolTip>
+            </Slider>
+            <TextBlock x:Name="springDeadZoneTextBlock" HorizontalAlignment="Left" TextWrapping="Wrap" Text="  Dead&#xA;  Zone" RenderTransformOrigin="1.016,0.1" Margin="151,169,0,-39"/>
+            <TextBox x:Name="springBiasTextBox" HorizontalAlignment="Left" Height="2" Text="---" TextAlignment="Center" VerticalAlignment="Top" Width="0" Margin="215,54,0,0"/>
+            <Slider x:Name="springBiasSlider" Height="67" Width="37" Maximum="100" Orientation="Vertical" ValueChanged="springBiasSlider_ValueChanged" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="228,94,0,0">
+                <ToolTipService.ToolTip >
+                    <ToolTip Content="The offset to the center point in effect calculations. &#xA;0.0 is Equal force in both directions."  HorizontalOffset="10" VerticalOffset="20"/>
+                </ToolTipService.ToolTip>
+            </Slider>
+            <TextBlock x:Name="springBiasTextBlock" HorizontalAlignment="Left" TextWrapping="Wrap" Text="Bias" RenderTransformOrigin="1.016,0.1" Margin="234,169,0,-39"/>
+            <TextBox x:Name="springMaxFeedbackForceTextBox" HorizontalAlignment="Left" Height="2" Text="---" TextAlignment="Center" VerticalAlignment="Top" Width="0" Margin="4,54,0,0"/>
+            <Button x:Name="springEnableButton" Content="Enable" HorizontalAlignment="Left" Height="34" Margin="193,8,0,0" VerticalAlignment="Top" Width="83" RenderTransformOrigin="0.181,0.471" Click="springEnableButton_Click"/>
+        </RelativePanel>
 
     </Grid>
 </Page>
