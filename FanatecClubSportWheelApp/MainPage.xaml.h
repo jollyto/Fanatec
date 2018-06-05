@@ -9,6 +9,19 @@
 #include <vector>
 #include <array>
 
+#define WIN32_LEAN_AND_MEAN
+
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
+#include <windows.h>
+#include <winsock2.h>
+//#include <ws2tcpip.h>
+
+// Need to link with Ws2_32.lib, Mswsock.lib, and Advapi32.lib
+#pragma comment (lib, "Ws2_32.lib")
+//#pragma comment (lib, "Mswsock.lib")
+//#pragma comment (lib, "AdvApi32.lib")
+
 using namespace Windows::Gaming::Input;
 using namespace Windows::Gaming::Input::ForceFeedback;
 
@@ -68,6 +81,37 @@ namespace FanatecClubSportWheelApp
         ConditionForceEffect ^ m_frictionEffect;
         ConditionForceEffect ^ m_inertiaEffect;
 
+        static const bool ONE_TIME = false;
+
+        struct WinsockConst
+        {
+            static const int BUFLEN = 512;
+            int  PORT;
+            const char*  HOST_IP;
+            WinsockConst() 
+            : PORT(8888),
+              HOST_IP("127.0.0.1") {}
+        };
+
+        struct WinsockData
+        {
+            WinsockConst WINSOCK_CONST;
+
+            struct sockaddr_in si_other;
+            int socket;
+            const int slen;
+            char buf[WinsockConst::BUFLEN];
+            char message[WinsockConst::BUFLEN];
+            WSADATA wsaData;
+            std::wstring errMsg;
+
+            WinsockData()
+            : socket(INVALID_SOCKET), slen(sizeof(si_other)),
+              errMsg(L"Cannot initialize network connection.\nApplication will terminate.\n")
+            {}
+        };
+        WinsockData m_winsockData;
+
         std::vector <RacingWheel^> m_racingWheels;
 
         void createInitConditionForceParams();
@@ -119,5 +163,10 @@ namespace FanatecClubSportWheelApp
         void inertiaBiasSlider_ValueChanged(Platform::Object^ sender, Windows::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs^ e);
         void inertiaEnableButton_Click(Platform::Object^ sender, Windows::UI::Xaml::RoutedEventArgs^ e);
 
-    };
+        // Winsock
+        bool initializeWinsock();
+        void initializeHostIpPortNoUI();
+
+        void CloseCommandInvokedHandler(Windows::UI::Popups::IUICommand^ command);
+};
 }

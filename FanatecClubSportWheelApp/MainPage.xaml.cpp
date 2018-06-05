@@ -3,11 +3,13 @@
 // Implementation of the MainPage class.
 //
 
+
 #include "pch.h"
 #include "MainPage.xaml.h"
 #include <iostream>
 #include <string>
 #include <WindowsNumerics.h>
+#include <sstream>
 
 using namespace std;
 
@@ -17,6 +19,7 @@ using namespace Platform;
 using namespace Windows::Foundation;
 using namespace Windows::Foundation::Collections;
 using namespace Windows::Foundation::Numerics;
+using namespace Windows::UI::Popups;
 using namespace Windows::UI::Xaml;
 using namespace Windows::UI::Xaml::Controls;
 using namespace Windows::UI::Xaml::Controls::Primitives;
@@ -27,13 +30,34 @@ using namespace Windows::UI::Xaml::Navigation;
 using namespace Windows::Gaming::Input;
 using namespace Windows::Gaming::Input::ForceFeedback;
 
+
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
 MainPage::MainPage()
+: m_winsockData()
 {
     createInitConditionForceParams();
  
 	InitializeComponent();
+
+    initializeHostIpPortNoUI();
+    
+    cout << "Initializing network connection ..." << endl;
+
+    if (!initializeWinsock())
+    {
+        // Create the message dialog and set its content
+        const wchar_t* errMsgWchar = m_winsockData.errMsg.c_str();
+        Platform::String^ errMsg = ref new Platform::String(errMsgWchar);
+
+        MessageDialog^ msg = ref new MessageDialog(errMsg);
+
+        UICommand^ closeCommand = ref new UICommand(
+            "Close",
+            ref new UICommandInvokedHandler(this, &FanatecClubSportWheelApp::MainPage::CloseCommandInvokedHandler));
+        msg->Commands->Append(closeCommand);
+        msg->ShowAsync();
+    }
 
     int count(0);
 
@@ -82,6 +106,11 @@ MainPage::MainPage()
     StartTimerAndRegisterHandler();
 
     cout << "\nDone!" << endl;
+}
+
+void FanatecClubSportWheelApp::MainPage::CloseCommandInvokedHandler(Windows::UI::Popups::IUICommand ^ command)
+{
+    Application::Current->Exit();
 }
 
 void FanatecClubSportWheelApp::MainPage::createInitConditionForceParams()
@@ -827,4 +856,79 @@ void FanatecClubSportWheelApp::MainPage::inertiaEnableButton_Click(Platform::Obj
             inertiaEnableButton->Content = "Disable";
         }
     }
+}
+
+bool FanatecClubSportWheelApp::MainPage::initializeWinsock()
+{
+    bool initialized(true);
+
+    do 
+    {
+        cout << "Initialising Winsock ..." << endl;
+        if (WSAStartup(MAKEWORD(2, 2), &m_winsockData.wsaData) != 0)
+        {
+            cout << "ERROR:: " << endl;
+            cout << "ERROR:: WSAStartup() failed with error: " << WSAGetLastError() << endl;
+            cout << "ERROR:: " << endl;
+
+            m_winsockData.errMsg.append(L"ERROR:: WSAStartup failed with error: ");
+            std::wstring iResult = std::to_wstring(WSAGetLastError());
+            m_winsockData.errMsg.append(iResult);
+            m_winsockData.errMsg.append(L"\n");
+
+            WSACleanup();
+
+            initialized = false;
+            break; // exit do-while(ONE_TIME) loop
+        }
+        cout << "Winsock initialised ." << endl;
+
+        // create socket
+        cout << "Creating UDP socket ..." << endl;
+        if ((m_winsockData.socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == SOCKET_ERROR)
+        {
+            cout << "ERROR:: " << endl;
+            cout << "ERROR:: socket() failed with error: " << WSAGetLastError() << endl;
+            cout << "ERROR:: " << endl;
+
+            m_winsockData.errMsg.append(L"ERROR:: socket() failed with error: ");
+            std::wstring iResult = std::to_wstring(WSAGetLastError());
+            m_winsockData.errMsg.append(iResult);
+            m_winsockData.errMsg.append(L"\n");
+
+            WSACleanup();
+
+            initialized = false;
+            break; // exit do-while(ONE_TIME) loop
+        }
+        cout << "UDP socket created." << endl;
+
+        //setup address structure
+        memset((char *)&m_winsockData.si_other, 0, sizeof(m_winsockData.si_other));
+        m_winsockData.si_other.sin_family = AF_INET;
+        m_winsockData.si_other.sin_port = htons(m_winsockData.WINSOCK_CONST.PORT);
+        m_winsockData.si_other.sin_addr.S_un.S_addr = inet_addr(m_winsockData.WINSOCK_CONST.HOST_IP);
+
+    } while (ONE_TIME);
+
+    return initialized;
+}
+
+void FanatecClubSportWheelApp::MainPage::initializeHostIpPortNoUI()
+{
+    std::ostringstream s;
+    s << m_winsockData.WINSOCK_CONST.PORT;
+
+    std::string portStr = s.str();
+    std::wstring portWidStr = std::wstring(portStr.begin(), portStr.end());
+    const wchar_t* portWchar = portWidStr.c_str();
+    Platform::String^ portString = ref new Platform::String(portWchar);
+
+    std::string hostIpStr = std::string(m_winsockData.WINSOCK_CONST.HOST_IP);
+    std::wstring hostIpWidStr = std::wstring(hostIpStr.begin(), hostIpStr.end());
+    const wchar_t* HostIpWchar = hostIpWidStr.c_str();
+    Platform::String^ hostIpString = ref new Platform::String(HostIpWchar);
+
+    hostIpTextBox->Text = hostIpString;
+    portNumberBox->Text = portString;
 }
