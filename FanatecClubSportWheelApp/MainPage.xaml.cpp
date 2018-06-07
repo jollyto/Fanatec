@@ -29,6 +29,7 @@ using namespace Windows::UI::Xaml::Media;
 using namespace Windows::UI::Xaml::Navigation;
 using namespace Windows::Gaming::Input;
 using namespace Windows::Gaming::Input::ForceFeedback;
+using namespace Windows::Networking::Connectivity;
 
 
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
@@ -36,12 +37,16 @@ using namespace Windows::Gaming::Input::ForceFeedback;
 MainPage::MainPage()
 : m_winsockData()
 {
+    m_rcvTimePoint1 = m_rcvTimePoint2;
+
     createInitConditionForceParams();
  
 	InitializeComponent();
 
     initializeHostIpPortNoUI();
     
+    refreshMyIpTextBox();
+
     cout << "Initializing network connection ..." << endl;
 
     if (!initializeWinsock())
@@ -409,6 +414,8 @@ void FanatecClubSportWheelApp::MainPage::OnTick(Object ^ sender, Object ^ e)
 
             angleTextBox->Text = displayAngle.ToString();
         }
+
+        receiveDataFromSocket();
     }
 }
 
@@ -639,7 +646,7 @@ void FanatecClubSportWheelApp::MainPage::SetFrictionEffectParameters()
 void FanatecClubSportWheelApp::MainPage::frictionMaxFeedbackForceSlider_ValueChanged(Platform::Object ^ sender, Windows::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs ^ e)
 {
     float val(static_cast<float>(frictionMaxFeedbackForceSlider->Value) * 0.01f);
-
+    
     //cout << "val: " << val << endl; 
 
     m_conditionForceParams[static_cast<int>(ConditionForceEffectKind::Friction)]->maxFeedbackForce = val;
@@ -865,6 +872,7 @@ bool FanatecClubSportWheelApp::MainPage::initializeWinsock()
     do 
     {
         cout << "Initialising Winsock ..." << endl;
+
         if (WSAStartup(MAKEWORD(2, 2), &m_winsockData.wsaData) != 0)
         {
             cout << "ERROR:: " << endl;
@@ -885,7 +893,7 @@ bool FanatecClubSportWheelApp::MainPage::initializeWinsock()
 
         // create socket
         cout << "Creating UDP socket ..." << endl;
-        if ((m_winsockData.socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == SOCKET_ERROR)
+        if ((m_winsockData.recvSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
         {
             cout << "ERROR:: " << endl;
             cout << "ERROR:: socket() failed with error: " << WSAGetLastError() << endl;
@@ -901,34 +909,264 @@ bool FanatecClubSportWheelApp::MainPage::initializeWinsock()
             initialized = false;
             break; // exit do-while(ONE_TIME) loop
         }
-        cout << "UDP socket created." << endl;
+        cout << "socket created." << endl;
 
-        //setup address structure
-        memset((char *)&m_winsockData.si_other, 0, sizeof(m_winsockData.si_other));
-        m_winsockData.si_other.sin_family = AF_INET;
-        m_winsockData.si_other.sin_port = htons(m_winsockData.WINSOCK_CONST.PORT);
-        m_winsockData.si_other.sin_addr.S_un.S_addr = inet_addr(m_winsockData.WINSOCK_CONST.HOST_IP);
+        u_long iMode = 1;
+        ioctlsocket(m_winsockData.recvSocket, FIONBIO, &iMode);
+
+        //Prepare the sockaddr_in structure
+        m_winsockData.recvAddr.sin_family = AF_INET;
+        m_winsockData.recvAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+        // m_winsockData.server.sin_addr.s_addr = inet_addr("192.168.100.130");
+
+        // Update PORT  
+        auto port(ToULong(portNumberBox->Text));
+        m_winsockData.recvAddr.sin_port = htons(port);
+
+        cout << "Using Port : " << port << endl << endl;
+
+        // Bind
+        if (::bind(m_winsockData.recvSocket, 
+                (struct sockaddr *)&m_winsockData.recvAddr, 
+sizeof(m_winsockData.recvAddr)) == SOCKET_ERROR)
+        {
+        printf("Bind failed with error code : %d", WSAGetLastError());
+        cout << "ERROR:: " << endl;
+        cout << "ERROR:: Bind() failed with error: " << WSAGetLastError() << endl;
+        cout << "ERROR:: " << endl;
+
+        m_winsockData.errMsg.append(L"ERROR:: Bind() failed with error: ");
+        std::wstring iResult = std::to_wstring(WSAGetLastError());
+        m_winsockData.errMsg.append(iResult);
+        m_winsockData.errMsg.append(L"\n");
+
+        WSACleanup();
+
+        initialized = false;
+        break; // exit do-while(ONE_TIME) loop
+        }
+
+cout << "Bind done" << endl;
 
     } while (ONE_TIME);
 
     return initialized;
 }
 
+void FanatecClubSportWheelApp::MainPage::resetWinsock()
+{
+    cout << "Resetting winsock ..." << endl;
+    closesocket(m_winsockData.recvSocket);
+    WSACleanup();
+}
+
 void FanatecClubSportWheelApp::MainPage::initializeHostIpPortNoUI()
 {
     std::ostringstream s;
-    s << m_winsockData.WINSOCK_CONST.PORT;
+    s << m_winsockData.port;
 
     std::string portStr = s.str();
     std::wstring portWidStr = std::wstring(portStr.begin(), portStr.end());
     const wchar_t* portWchar = portWidStr.c_str();
     Platform::String^ portString = ref new Platform::String(portWchar);
 
-    std::string hostIpStr = std::string(m_winsockData.WINSOCK_CONST.HOST_IP);
-    std::wstring hostIpWidStr = std::wstring(hostIpStr.begin(), hostIpStr.end());
-    const wchar_t* HostIpWchar = hostIpWidStr.c_str();
-    Platform::String^ hostIpString = ref new Platform::String(HostIpWchar);
-
-    hostIpTextBox->Text = hostIpString;
     portNumberBox->Text = portString;
+}
+
+void FanatecClubSportWheelApp::MainPage::networkResetButton_Click(Platform::Object^ sender, Windows::UI::Xaml::RoutedEventArgs^ e)
+{
+    resetWinsock();
+
+    if (!initializeWinsock())
+    {
+        // Create the message dialog and set its content
+        const wchar_t* errMsgWchar = m_winsockData.errMsg.c_str();
+        Platform::String^ errMsg = ref new Platform::String(errMsgWchar);
+
+        MessageDialog^ msg = ref new MessageDialog(errMsg);
+
+        /* UICommand^ closeCommand = ref new UICommand(
+        "Close",
+        ref new UICommandInvokedHandler(this, &FanatecClubSportWheelApp::MainPage::CloseCommandInvokedHandler));
+        msg->Commands->Append(closeCommand);
+        */
+        msg->ShowAsync();
+    }
+}
+
+void FanatecClubSportWheelApp::MainPage::refreshMyIpTextBox()
+{
+    for each (auto localHostName in NetworkInformation::GetHostNames())
+    {
+
+        if (localHostName->IPInformation)
+        {
+            if (localHostName->Type == Windows::Networking::HostNameType::Ipv4)
+            {
+                myIpTextBox->Text = localHostName->ToString();
+                break;
+            }
+        }
+    }
+}
+
+bool FanatecClubSportWheelApp::MainPage::receiveDataFromSocket()
+{
+    static bool firstTimeCalled(true);
+    static const double MAXTIME_ELAPSE_SECS(5.0);
+
+    if (firstTimeCalled)
+    {
+        firstTimeCalled = false;
+        resetRcvTimePoints();
+    }
+
+    bool ok(true);
+
+    std::chrono::duration<double> time_span;
+
+    // Clear the buffer by filling null, it might have previously received data
+    memset(m_winsockData.recvBuf, '\0', WinsockConst::BUFLEN);
+
+    // try to receive some data, this is a blocking call
+    if ((m_winsockData.recv_len =
+        ::recvfrom(
+            m_winsockData.recvSocket,
+            m_winsockData.recvBuf,
+            m_winsockData.bufLen,
+            0,
+            (struct sockaddr *) &m_winsockData.senderAddr,
+            &m_winsockData.senderAddrSize)) == SOCKET_ERROR)
+    {
+        if (WSAGetLastError() == WSAEWOULDBLOCK)
+        {
+            m_rcvTimePoint2 = std::chrono::high_resolution_clock::now();
+            time_span = m_rcvTimePoint2 - m_rcvTimePoint1;
+
+            if (time_span.count() > MAXTIME_ELAPSE_SECS)
+            {
+                resetRcvTimePoints();
+                cout << "time_span.count: " << time_span.count() << " seconds." << endl;
+
+                cout << "ERROR:: " << endl;
+                cout << "ERROR:: recvfrom() - Client not sending data. " << endl;
+                cout << "ERROR:: " << endl;
+            }
+            
+            ok = false;
+        }
+
+        if (WSAGetLastError() != WSAEWOULDBLOCK)
+        {
+            cout << "ERROR:: " << endl;
+            cout << "ERROR:: recvfrom() failed with error code: " << WSAGetLastError() << endl;
+            cout << "ERROR:: " << endl;
+
+            m_winsockData.errMsg.append(L"ERROR:: recvfrom() failed with error code: ");
+            std::wstring iResult = std::to_wstring(WSAGetLastError());
+            m_winsockData.errMsg.append(iResult);
+            m_winsockData.errMsg.append(L"\n");
+
+            ok = false;
+        }
+        
+    }
+
+    if (ok)
+    {
+        resetRcvTimePoints();
+        
+        // Print details of the client/peer and the data received
+        cout << "Received packet from " << inet_ntoa(m_winsockData.senderAddr.sin_addr) << ":"
+             << ntohs(m_winsockData.senderAddr.sin_port) << endl << endl;
+        cout << "Data: " << m_winsockData.recvBuf << endl;             
+    }
+
+    return ok;
+}
+
+void FanatecClubSportWheelApp::MainPage::resetRcvTimePoints()
+{
+    m_rcvTimePoint1 = std::chrono::high_resolution_clock::now();
+    m_rcvTimePoint2 = m_rcvTimePoint1;
+}
+
+unsigned long FanatecClubSportWheelApp::MainPage::ToULong(Platform::String^ str)
+{
+    const wchar_t* begin = str->Data();
+    return std::wcstoul(begin, nullptr, 10);
+}
+
+int FanatecClubSportWheelApp::MainPage::testServer()
+{
+    int iResult = 0;
+
+    WSADATA wsaData;
+
+    SOCKET RecvSocket;
+    sockaddr_in RecvAddr;
+
+    unsigned short Port = 8844;
+
+    char RecvBuf[1024];
+    int BufLen = 1024;
+
+    sockaddr_in SenderAddr;
+    int SenderAddrSize = sizeof(SenderAddr);
+
+    //-----------------------------------------------
+    // Initialize Winsock
+    iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (iResult != NO_ERROR) {
+        wprintf(L"WSAStartup failed with error %d\n", iResult);
+        return 1;
+    }
+    //-----------------------------------------------
+    // Create a receiver socket to receive datagrams
+    RecvSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (RecvSocket == INVALID_SOCKET) {
+        wprintf(L"socket failed with error %d\n", WSAGetLastError());
+        return 1;
+    }
+    //-----------------------------------------------
+    // Bind the socket to any address and the specified port.
+    RecvAddr.sin_family = AF_INET;
+    RecvAddr.sin_port = htons(Port);
+    RecvAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    // RecvAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    iResult = ::bind(RecvSocket, (SOCKADDR *)& RecvAddr, sizeof(RecvAddr));
+    if (iResult != 0) {
+        wprintf(L"bind failed with error %d\n", WSAGetLastError());
+        return 1;
+    }
+    wprintf(L"bind works.\n");
+    
+    //-----------------------------------------------
+    // Call the recvfrom function to receive datagrams
+    // on the bound socket.
+    wprintf(L"Waiting to Receive datagrams...\n");
+    iResult = recvfrom(RecvSocket,
+        RecvBuf, BufLen, 0, (SOCKADDR *)& SenderAddr, &SenderAddrSize);
+    if (iResult == SOCKET_ERROR) {
+        wprintf(L"recvfrom failed with error %d\n", WSAGetLastError());
+    }
+    // Print details of the client/peer and the data received
+    cout << "Received packet from " << inet_ntoa(SenderAddr.sin_addr) << ":"
+        << ntohs(SenderAddr.sin_port) << endl << endl;
+    cout << "Data: " << RecvBuf << endl;
+
+    //-----------------------------------------------
+    // Close the socket when finished receiving datagrams
+    wprintf(L"Finished receiving. Closing socket.\n");
+    iResult = closesocket(RecvSocket);
+    if (iResult == SOCKET_ERROR) {
+        wprintf(L"closesocket failed with error %d\n", WSAGetLastError());
+        return 1;
+    }
+
+    //-----------------------------------------------
+    // Clean up and exit.
+    wprintf(L"Exiting.\n");
+    WSACleanup();
+    return 0;
 }

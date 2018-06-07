@@ -15,7 +15,9 @@
 
 #include <windows.h>
 #include <winsock2.h>
-//#include <ws2tcpip.h>
+#include <ws2tcpip.h>
+
+#include <chrono>  // for high_resolution_clock
 
 // Need to link with Ws2_32.lib, Mswsock.lib, and Advapi32.lib
 #pragma comment (lib, "Ws2_32.lib")
@@ -85,34 +87,43 @@ namespace FanatecClubSportWheelApp
 
         struct WinsockConst
         {
-            static const int BUFLEN = 512;
-            int  PORT;
-            const char*  HOST_IP;
-            WinsockConst() 
-            : PORT(8888),
-              HOST_IP("127.0.0.1") {}
+            static const int BUFLEN = 1024;
         };
 
         struct WinsockData
         {
             WinsockConst WINSOCK_CONST;
 
-            struct sockaddr_in si_other;
-            int socket;
-            const int slen;
-            char buf[WinsockConst::BUFLEN];
-            char message[WinsockConst::BUFLEN];
             WSADATA wsaData;
+
+            SOCKET recvSocket;
+            struct sockaddr_in recvAddr;
+
+            unsigned short port;
+
+            char recvBuf[WinsockConst::BUFLEN];
+            int bufLen;
+
+            struct sockaddr_in senderAddr;
+            
+            int senderAddrSize;
+            int recv_len;
+
+            
             std::wstring errMsg;
 
             WinsockData()
-            : socket(INVALID_SOCKET), slen(sizeof(si_other)),
+            : recvSocket(INVALID_SOCKET), bufLen(WinsockConst::BUFLEN), senderAddrSize(sizeof(senderAddr)), 
+              port(8844),
               errMsg(L"Cannot initialize network connection.\nApplication will terminate.\n")
             {}
         };
         WinsockData m_winsockData;
 
         std::vector <RacingWheel^> m_racingWheels;
+
+        std::chrono::high_resolution_clock::time_point m_rcvTimePoint1;
+        std::chrono::high_resolution_clock::time_point m_rcvTimePoint2;
 
         void createInitConditionForceParams();
 
@@ -165,8 +176,21 @@ namespace FanatecClubSportWheelApp
 
         // Winsock
         bool initializeWinsock();
+        void resetWinsock();
         void initializeHostIpPortNoUI();
 
         void CloseCommandInvokedHandler(Windows::UI::Popups::IUICommand^ command);
+        void networkResetButton_Click(Platform::Object^ sender, Windows::UI::Xaml::RoutedEventArgs^ e);
+        
+        bool receiveDataFromSocket();
+
+        unsigned long ToULong(Platform::String^ str);
+
+        void refreshMyIpTextBox();
+
+        void resetRcvTimePoints();
+
+        int testServer();
 };
+
 }
